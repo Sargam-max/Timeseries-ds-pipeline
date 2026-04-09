@@ -1,21 +1,28 @@
-# Timeseries-ds-pipeline
-
-# 🧠 timeseries-ds-pipeline
+# 🧠Timeseries-ds-pipeline
 
 > **Feature Selection · Anomaly Detection · Statistical Forecasting**  
-> A structured, end-to-end data science portfolio project — from raw features to production-ready forecasts.
+> An end-to-end data science portfolio project — from raw features to production-ready forecasts.
+
+**Author:** Sargam Tripathi · **Role Applied For:** Data Science Intern  
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Sargam%20Tripathi-blue?logo=linkedin)](https://in.linkedin.com/in/sargam-tripathi-304089318)
+[![GitHub](https://img.shields.io/badge/GitHub-Sargam--max-black?logo=github)](https://github.com/Sargam-max)
 
 ---
 
 ## 📌 Overview
 
-This repository contains a single, cohesive Jupyter notebook that walks through three fundamental data science workflows on real-world datasets. Each module stands alone as a learning reference, but together they form a complete ML pipeline: clean your features, detect anomalies in your signal, then forecast the future.
+This repository contains a single cohesive Jupyter notebook integrating three fundamental data science workflows on real-world datasets. Each module stands alone as a learning reference — but together they form a complete ML pipeline:
 
-| Module | Problem | Dataset | Techniques |
-|--------|---------|---------|------------|
-| 🔬 **1 — Feature Selection** | Which features actually matter? | UCI Wine (scikit-learn) | Variance Threshold, SelectKBest (MI), RFE, Boruta |
-| 🚨 **2 — Anomaly Detection** | Detect unusual spikes in cloud metrics | AWS EC2 CPU (Numenta NAB) | MAD Robust Z-score, Isolation Forest, Local Outlier Factor |
-| 📈 **3 — Forecasting** | Predict bakery sales 7 days ahead | French Bakery daily sales | ARIMA, SARIMA, ETS, Theta, CES, MSTL+AutoARIMA, Exogenous Features |
+```
+Raw data  ──▶  Feature Selection  ──▶  Anomaly Detection  ──▶  Forecasting
+              (remove noise)            (clean the signal)      (predict the future)
+```
+
+| Module | Problem | Dataset | Key Techniques |
+|--------|---------|---------|----------------|
+| 🔬 **1 — Feature Selection** | Which features actually matter? | UCI Wine (178 samples, 13 features) | Variance Threshold, SelectKBest (MI), RFE, Boruta |
+| 🚨 **2 — Anomaly Detection** | Detect unusual spikes in cloud metrics | AWS EC2 CPU — Numenta NAB (4,032 pts) | MAD Robust Z-score, Isolation Forest, Local Outlier Factor |
+| 📈 **3 — Forecasting** | Predict bakery sales 7 days ahead | French Bakery daily sales | Naive baselines, ARIMA, SARIMA, Exogenous features, Prediction intervals |
 
 ---
 
@@ -24,11 +31,11 @@ This repository contains a single, cohesive Jupyter notebook that walks through 
 ```
 timeseries-ds-pipeline/
 │
-├── ds_portfolio_combined.ipynb   ← Main notebook (all 3 modules)
+├── ds_portfolio_combined.ipynb        ← Main notebook (all 3 modules, 82 cells)
 │
 ├── data/
-│   ├── ec2_cpu_utilization_24ae8d.csv      ← AWS EC2 CPU (Numenta NAB)
-│   └── daily_sales_french_bakery.csv← French Bakery sales
+│   ├── ec2_cpu_utilization.csv        ← AWS EC2 CPU utilisation (Numenta NAB)
+│   └── daily_sales_french_bakery.csv  ← French Bakery daily sales + unit prices
 │
 ├── requirements.txt
 └── README.md
@@ -38,127 +45,135 @@ timeseries-ds-pipeline/
 
 ## 🔬 Module 1 — Feature Selection
 
-**Dataset:** UCI Wine Recognition (178 samples, 13 features, 3 classes)  
-**Model:** GradientBoostingClassifier evaluated with weighted F1-score
+**Dataset:** UCI Wine Recognition — loaded directly via `sklearn.datasets.load_wine()`  
+**Task:** 3-class wine cultivar classification  
+**Classifier:** `GradientBoostingClassifier(max_depth=5)` · Metric: weighted F1-score  
+**Split:** Stratified 70/30 train/test (`random_state=42`)
 
-Four methods are benchmarked and compared:
+### Methods Compared
 
-| Method | Type | Features Selected | F1-Score |
-|--------|------|:-----------------:|:--------:|
-| All features (baseline) | — | 13 | *your result* |
-| Variance Threshold | Filter | 11 | *your result* |
-| SelectKBest (Mutual Info) | Filter | 3 | *your result* |
-| RFE | Wrapper | 3 | *your result* |
-| Boruta | All-relevant | ~9 | *your result* |
+| Method | Type | Features Selected | Key Idea |
+|--------|------|:-----------------:|----------|
+| All features (baseline) | — | 13 | Benchmark to beat |
+| Variance Threshold | Filter | 11 | Drop `ash` & `magnesium` — near-zero variance after MinMax scaling |
+| SelectKBest — Mutual Info | Filter | 3 | Score features by non-linear dependence with target; sweep k=1…13 |
+| RFE | Wrapper | 3 | Recursively remove weakest feature; model-aware; sweep k=1…13 |
+| Boruta | All-relevant | ~9 | Compare each feature against random shadow features using Random Forest |
 
-**Key visual:** Scatter plot of F1 vs. number of features — shows the sweet spot where fewer features match or beat the full model.
+### Key Visuals
+- Variance bar chart with threshold line — identifies low-information features at a glance  
+- F1 vs. k sweep plots for SelectKBest and RFE — pinpoints the optimal feature count  
+- Side-by-side scatter: F1-score vs. number of features (efficiency plot)  
+- Summary table: method · N features · F1 · Δ vs baseline · speed · model-awareness  
 
 ---
 
 ## 🚨 Module 2 — Anomaly Detection in Time Series
 
-**Dataset:** AWS EC2 CPU utilisation — 4,032 data points at 5-min intervals  
-**Ground truth:** 2 labelled anomaly timestamps from the [Numenta NAB benchmark](https://github.com/numenta/NAB)
+**Dataset:** AWS EC2 CPU utilisation (`ec2_cpu_utilization_24ae8d`) from the [Numenta NAB benchmark](https://github.com/numenta/NAB)  
+- **4,032 data points** recorded every 5 minutes starting 2014-02-14  
+- **2 labelled ground-truth anomalies:** `2014-02-26 22:05` and `2014-02-27 17:15`  
+- Licence: AGPL-3.0
 
-Three methods compared using Precision / Recall / F1:
+**Split:** Temporal — train on `[:3550]`, test on `[3550:]` (both anomalies fall in the test set)  
+**Contamination:** `1 / len(train)` for ML models
 
-| Method | Family | Key Idea |
-|--------|--------|----------|
-| MAD Robust Z-score | Statistical | Median-based Z-score, resistant to outlier skew |
-| Isolation Forest | ML — Tree | Anomalies are isolated faster in random trees |
-| Local Outlier Factor | ML — Density | Anomalies have lower local density than neighbours |
+### Methods Compared
 
-**Key visual:** Side-by-side confusion matrices + grouped Precision/Recall/F1 bar chart.
+| Method | Family | Core Formula / Algorithm | Threshold |
+|--------|--------|--------------------------|:---------:|
+| MAD Robust Z-score | Statistical | `Z = 0.6745·(x − median) / MAD` | \|Z\| > 3.5 |
+| Isolation Forest | ML — Tree-based | Anomalies isolated in fewer random tree splits | contamination |
+| Local Outlier Factor | ML — Density-based | Points with lower local density than k-NN are anomalous | contamination |
+
+### Key Visuals
+- Raw time series with true anomaly positions marked (×)  
+- KDE of CPU value distribution with median line  
+- Individual confusion matrices per method (Blues / Oranges / Greens)  
+- 3-panel side-by-side confusion matrix grid  
+- Grouped bar chart: Precision / Recall / F1 for all three methods  
+- TP / FP / FN breakdown chart  
 
 ---
 
 ## 📈 Module 3 — Statistical Time Series Forecasting
 
-**Dataset:** French Bakery daily sales — BAGUETTE and CROISSANT  
-**Horizon:** 7 days | **Evaluation:** 8-fold rolling cross-validation
+**Dataset:** French Bakery daily sales — products `BAGUETTE` and `CROISSANT`  
+- Unit price included as exogenous variable  
+- Strong **weekly seasonality** (higher weekend sales)  
+- Filtered to series with ≥ 28 observations  
 
-### Model Ladder
-
-```
-Naive baselines ──→ ARIMA/SARIMA ──→ ETS / Theta / CES ──→ MSTL+ARIMA ──→ + Exogenous features
-```
-
-| Model | Family | Seasonal | Exogenous |
-|-------|--------|:--------:|:---------:|
-| ARIMA | ARIMA | ❌ | ✅ |
-| SARIMA | ARIMA | ✅ | ✅ |
-| AutoETS | Exponential Smoothing | ✅ | ❌ |
-| AutoTheta | Theta | ✅ | ❌ |
-| AutoCES | Complex ES | ✅ | ❌ |
-| MSTL + AutoARIMA | Decomposition | ✅ | ❌ |
-| SARIMA + Price | ARIMA + Exog | ✅ | ✅ |
-| SARIMA + Time Features | ARIMA + Exog | ✅ | ✅ |
-
-**Key visuals:**
-- 🥇🥈🥉 Medal-coloured leaderboard across all 8 model variants
-- Improvement-over-baseline chart (green = better, red = worse)
-- 3×3 metric grid (MAE, RMSE, MAPE, sMAPE, MASE, CRPS) with gold-border winner per metric
-- 80% prediction intervals via cross-validated AutoARIMA
+**Horizon:** 7 days | **Evaluation:** 8-fold rolling-origin cross-validation  
+(`n_windows=8`, `step_size=7`, `refit=True`)
 
 ---
 
-## 🛠️ Setup
+### 3.2 — Baseline Models
 
-### 1. Clone the repository
-```bash
-git clone https://github.com/Sargam-max/timeseries-ds-pipeline.git
-cd timeseries-ds-pipeline
-```
-
-### 2. Create a virtual environment (recommended)
-```bash
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-```
-
-### 3. Install dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Download the datasets
-
-**EC2 CPU data (Module 2):**
-- Download `ec2_cpu_utilization_24ae8d.csv` from the [Numenta NAB repo](https://github.com/numenta/NAB/blob/master/data/realAWSCloudwatch/ec2_cpu_utilization_24ae8d.csv)
-- Save as `ec2_cpu_utilization.csv`
-
-**French Bakery data (Module 3):**
-- Download from [Marco Peixeiro's data](https://github.com/marcopeix)
-- Save as `daily_sales_french_bakery.csv`
-
-### 5. Launch Jupyter
-```bash
-jupyter notebook ds_portfolio_combined_v2.ipynb
-```
-
-Run all cells top-to-bottom with **Cell → Run All**.
+| Model | Logic |
+|-------|-------|
+| Naive | Last observed value |
+| HistoricAverage | Mean of all history |
+| WindowAverage(7) | Mean of last 7 days |
+| **SeasonalNaive(7)** | Same weekday from last week — **best baseline** |
 
 ---
 
-## 📦 Requirements
+### 3.3 — ARIMA and SARIMA
 
-```
-pandas
-numpy
-matplotlib
-seaborn
-scikit-learn
-scipy
-statsforecast
-utilsforecast
-boruta-py
-jupyter
-```
+| Model | Config | Captures |
+|-------|--------|----------|
+| ARIMA | `AutoARIMA(seasonal=False)` | Trend + autocorrelation, no seasonality |
+| SARIMA | `AutoARIMA(season_length=7)` | Trend + autocorrelation + weekly seasonality |
 
-Or install everything at once:
-```bash
-pip install -r requirements.txt
-```
+`AutoARIMA` auto-selects the best (p,d,q) order by minimising AIC — no manual grid search needed.  
+Both models evaluated via 8-fold CV and benchmarked against SeasonalNaive.
+
+---
+
+### 3.4 — Forecasting with Exogenous Features
+
+| Variant | Extra Signal | How |
+|---------|-------------|-----|
+| `SARIMA_exog` | Unit price of each product | Pass `X_df=futr_exog_df` to `sf.predict()` |
+| `SARIMA_time_exog` | Fourier terms (k=2, s=7) + day/week/month calendar | `utilsforecast.feature_engineering.pipeline` |
+
+---
+
+### 3.5 — Prediction Intervals
+
+AutoARIMA with **80% prediction intervals** — shows the uncertainty band around every point forecast.  
+Evaluated using both a held-out test split and 8-fold cross-validation.
+
+---
+
+### 3.6 — Full Evaluation Suite
+
+Final face-off: **SARIMA_exog vs SeasonalNaive** across 7 metrics.
+
+| Metric | What It Penalises |
+|--------|------------------|
+| MAE | All errors equally |
+| MSE | Large errors more (squared) |
+| RMSE | Large errors — same units as target |
+| MAPE | Percentage error (scale-free) |
+| sMAPE | Symmetric MAPE — handles near-zero values better |
+| MASE (s=7) | Normalised vs seasonal naive |
+| scaled CRPS | Full probabilistic forecast quality |
+
+Visualised as a **3×3 metric grid** with a gold border on the winner per metric.
+
+---
+
+### 📊 Module 3 Leaderboard (Cross-Validated MAE, 8 folds)
+
+| Rank | Model | MAE |
+|:----:|-------|:---:|
+| 🥇 | SARIMA + Price Exog | **19.210** |
+| 🥈 | SARIMA | 19.281 |
+| 🥉 | SARIMA + Time Features | 19.533 |
+| 4 | Seasonal Naive | 21.118 |
+| 5 | ARIMA | 21.229 |
 
 ---
 
@@ -166,9 +181,73 @@ pip install -r requirements.txt
 
 | Module | Best Method | Score |
 |--------|-------------|-------|
-| Feature Selection | RFE (3 features) | F1 = *1.0* |
-| Anomaly Detection | Isolation Forest | F1 = *0.0* |
-| Forecasting | *Best model* | MAE = *19.281* |
+| 🔬 Feature Selection | RFE — 3 features | F1 = **1.000** |
+| 🚨 Anomaly Detection | Isolation Forest | F1 = **1.000** (test set) |
+| 📈 Forecasting | SARIMA + Price Exog | MAE = **19.210** |
+
+---
+
+## 🛠️ Setup
+
+### 1 — Clone the repository
+```bash
+git clone https://github.com/Sargam-max/timeseries-ds-pipeline.git
+cd timeseries-ds-pipeline
+```
+
+### 2 — Create a virtual environment
+```bash
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+```
+
+### 3 — Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 4 — Download the datasets
+
+Create a `data/` folder in the project root, then download:
+
+**Module 2 — EC2 CPU data (Numenta NAB, AGPL-3.0):**
+```
+https://github.com/numenta/NAB/blob/master/data/realAWSCloudwatch/ec2_cpu_utilization_24ae8d.csv
+→ Save as: data/ec2_cpu_utilization.csv
+```
+
+**Module 3 — French Bakery sales:**
+```
+https://github.com/marcopeix
+→ Save as: data/daily_sales_french_bakery.csv
+```
+
+### 5 — Launch the notebook
+```bash
+jupyter notebook ds_portfolio_combined.ipynb
+```
+
+Run all cells top-to-bottom with **Cell → Run All**.
+
+> ⚠️ `boruta-py` is required for Module 1 Section 1.6 — it is included in `requirements.txt`.
+
+---
+
+## 📦 Requirements
+
+```
+pandas>=2.0.0
+numpy>=1.24.0
+matplotlib>=3.7.0
+seaborn>=0.12.0
+scikit-learn>=1.3.0
+scipy>=1.11.0
+statsforecast>=1.7.0
+utilsforecast>=0.1.0
+boruta-py>=0.3.0
+jupyter>=1.0.0
+ipykernel>=6.0.0
+```
 
 ---
 
@@ -176,18 +255,20 @@ pip install -r requirements.txt
 
 1. Guyon & Elisseeff (2003). *An Introduction to Variable and Feature Selection*. JMLR.
 2. Kursa & Rudnicki (2010). *Feature Selection with the Boruta Package*. JSS.
-3. Chandola et al. (2009). *Anomaly Detection: A Survey*. ACM Computing Surveys.
-4. Liu et al. (2008). *Isolation Forest*. IEEE ICDM.
-5. Breunig et al. (2000). *LOF: Identifying Density-Based Local Outliers*. SIGMOD.
+3. Chandola, Banerjee & Kumar (2009). *Anomaly Detection: A Survey*. ACM Computing Surveys.
+4. Liu, Ting & Zhou (2008). *Isolation Forest*. IEEE ICDM.
+5. Breunig, Kriegel, Ng & Sander (2000). *LOF: Identifying Density-Based Local Outliers*. SIGMOD.
 6. Hyndman & Athanasopoulos (2021). *Forecasting: Principles and Practice* (3rd ed.). OTexts.
+
 
 ---
 
 ## 🙋 Author
 
-**[Sargam Tripathi]**  
-[LinkedIn](https://in.linkedin.com/in/sargam-tripathi-304089318) · [GitHub](https://github.com/Sargam-max)
+**Sargam Tripathi**  
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-blue?logo=linkedin)](https://in.linkedin.com/in/sargam-tripathi-304089318)
+[![GitHub](https://img.shields.io/badge/GitHub-Sargam--max-black?logo=github)](https://github.com/Sargam-max)
 
 ---
 
-*Built as a Data Science internship portfolio project.*
+*Built as a Data Science internship portfolio project*
