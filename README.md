@@ -24,7 +24,7 @@ This repository contains a single, cohesive Jupyter notebook that walks through 
 ```
 timeseries-ds-pipeline/
 │
-├── ds_portfolio_combined_v2.ipynb   ← Main notebook (all 3 modules)
+├── ds_portfolio_combined.ipynb   ← Main notebook (all 3 modules)
 │
 ├── data/
 │   ├── ec2_cpu_utilization_24ae8d.csv      ← AWS EC2 CPU (Numenta NAB)
